@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  gold-analyzer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gold-analyzer
+    restart: unless-stopped
+    environment:
+      - SYMBOL=GC=F
+      - INTERVAL=1h
+      - RANGE=7d
+      - CHECK_INTERVAL_MINUTES=1
+      - RSI_PERIOD=14
+      - ATR_PERIOD=14
+      - RSI_BUY_LOWER=40
+      - RSI_BUY_UPPER=55
+      - RSI_SELL_THRESHOLD=65
+      - LOG_FILE=/var/log/gold-analyzer/signals.log
+      - ENABLE_NOTIFICATIONS=0
+    volumes:
+      - ./logs:/var/log/gold-analyzer
+    networks:
+      - analyzer-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  analyzer-network:
+    driver: bridge
+
+volumes:
+  logs:
+    driver: local
