@@ -6,8 +6,10 @@ import (
 	"strings"
 	"time"
 
+	"gold-analyzer/chart"
 	"gold-analyzer/config"
 	"gold-analyzer/indicators"
+	"gold-analyzer/model"
 	"gold-analyzer/shutdown"
 	"gold-analyzer/strategy"
 	"gold-analyzer/yahoo"
@@ -181,7 +183,66 @@ func analyzeGold(cfg *config.Config) {
 	}
 
 	logSignal(cfg, strategySignal, currentPrice, lastRSI, lastHist, lastATR)
+
+	// Generate charts
+	if cfg.ChartOutputDir != "" {
+		generateCharts(cfg, candles, rsi, macd, signal, hist, strategySignal)
+	}
+
 	fmt.Println(strings.Repeat("=", 70))
+}
+
+// generateCharts creates and saves all charts
+func generateCharts(cfg *config.Config, candles []model.Candle, rsi, macd, signal, hist []float64, lastSignal strategy.Signal) {
+	// Prepare chart data
+	chartData := &chart.ChartData{
+		Timestamps:  make([]time.Time, len(candles)),
+		Prices:      make([]float64, len(candles)),
+		RSI:         rsi,
+		MACD:        macd,
+		Signal:      signal,
+		Histogram:   hist,
+		BuySignals:  []int{},
+		SellSignals: []int{},
+	}
+
+	for i, c := range candles {
+		chartData.Timestamps[i] = time.Unix(c.Time, 0)
+		chartData.Prices[i] = c.Close
+	}
+
+	// Mark the last signal on the chart
+	if len(candles) > 0 {
+		lastIdx := len(candles) - 1
+		switch lastSignal {
+		case strategy.BUY:
+			chartData.BuySignals = append(chartData.BuySignals, lastIdx)
+		case strategy.SELL:
+			chartData.SellSignals = append(chartData.SellSignals, lastIdx)
+		}
+	}
+
+	// Create charts directory if it doesn't exist
+	if err := os.MkdirAll(cfg.ChartOutputDir, 0755); err != nil {
+		fmt.Printf("⚠️  خطا در ایجاد پوشه نمودارها: %v\n", err)
+		return
+	}
+
+	// Generate all charts
+	chartPaths, err := chart.GenerateAllCharts(chartData, cfg.ChartOutputDir)
+	if err != nil {
+		fmt.Printf("⚠️  خطا در تولید نمودارها: %v\n", err)
+		return
+	}
+
+	// Generate HTML dashboard
+	dashboardPath := cfg.ChartOutputDir + "/dashboard.html"
+	if err := chart.GenerateDashboard(chartPaths, dashboardPath); err != nil {
+		fmt.Printf("⚠️  خطا در تولید داشبورد: %v\n", err)
+		return
+	}
+
+	fmt.Printf("📊 نمودارها با موفقیت تولید شدند: %s\n", dashboardPath)
 }
 
 func printBuyReason(cfg *config.Config, rsi, hist, atr float64) {

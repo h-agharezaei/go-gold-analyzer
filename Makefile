@@ -19,6 +19,7 @@ help:
 	@echo "  make lint           - بررسی کیفیت کد"
 	@echo "  make install-tools  - نصب ابزارهای لازم"
 	@echo "  make run-with-log   - اجرا با logging"
+	@echo "  make run-with-charts - اجرا با تولید نمودارها"
 	@echo "  make help           - نمایش این پیام"
 
 build:
@@ -42,6 +43,10 @@ run-interactive: build
 	@echo "🚀 درحال اجرا حالت تعاملی..."
 	@echo "💡 برای متوقف کردن، Ctrl+C را فشار دهید..."
 	./$(BINARY_NAME)
+
+run-with-charts: build
+	@echo "📊 درحال اجرا با تولید نمودارها..."
+	CHART_OUTPUT_DIR="./charts" ./$(BINARY_NAME)
 
 test:
 	@echo "🧪 اجرای تست‌ها..."
@@ -96,6 +101,7 @@ clean:
 	@echo "🧹 پاک کردن فایل‌های تولید شده..."
 	rm -f $(BINARY_NAME)
 	rm -f signals.log
+	rm -rf ./charts
 	rm -f *.prof
 	rm -f *.test
 	$(GO) clean
@@ -118,6 +124,8 @@ check-all: clean fmt vet test bench lint
 	@echo "✅ تمام بررسی‌های جامع تکمیل شدند"
 
 dev: clean build run-with-log
+
+dev-charts: clean build run-with-charts
 
 dev-interactive: clean build run-interactive
 

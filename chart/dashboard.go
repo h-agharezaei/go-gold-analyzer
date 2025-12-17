@@ -1,0 +1,635 @@
+package chart
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+)
+
+// GenerateDashboard creates an HTML dashboard with embedded charts
+func GenerateDashboard(chartPaths map[string]string, outputPath string) error {
+	html := `<!DOCTYPE html>
+<html lang="fa">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gold Analyzer Dashboard - داشبورد تحلیل طلا</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-color: #667eea;
+            --secondary-color: #764ba2;
+            --success-color: #52c41a;
+            --danger-color: #f5222d;
+            --warning-color: #faad14;
+            --info-color: #1890ff;
+            --text-primary: #2c3e50;
+            --text-secondary: #7f8c8d;
+            --bg-light: #f8f9fa;
+            --bg-white: #ffffff;
+            --border-color: #e0e0e0;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.15);
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Tahoma', 'Geneva', 'Verdana', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-attachment: fixed;
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        /* Header Styles */
+        header {
+            background: var(--bg-white);
+            padding: 40px 30px;
+            border-radius: 15px;
+            box-shadow: var(--shadow-lg);
+            margin-bottom: 40px;
+            text-align: center;
+            border-top: 5px solid var(--primary-color);
+        }
+
+        header h1 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
+            font-size: 2.8em;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        header .subtitle {
+            color: var(--secondary-color);
+            font-size: 1.2em;
+            font-weight: 500;
+            margin-bottom: 20px;
+        }
+
+        header .timestamp {
+            color: var(--text-secondary);
+            font-size: 0.95em;
+            font-weight: 400;
+        }
+
+        /* Navigation */
+        nav {
+            background: var(--bg-white);
+            padding: 15px 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            box-shadow: var(--shadow);
+        }
+
+        nav a {
+            display: inline-block;
+            padding: 8px 16px;
+            background: var(--bg-light);
+            color: var(--primary-color);
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        nav a:hover {
+            background: var(--primary-color);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        /* Charts Grid */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(700px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        /* Chart Card */
+        .chart-card {
+            background: var(--bg-white);
+            border-radius: 15px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chart-card:hover {
+            transform: translateY(-8px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .chart-title {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            padding: 20px 25px;
+            font-size: 1.4em;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .chart-title-icon {
+            font-size: 1.3em;
+        }
+
+        .chart-iframe {
+            width: 100%;
+            height: 500px;
+            border: none;
+            flex-grow: 1;
+        }
+
+        /* Legend */
+        .legend {
+            background: var(--bg-light);
+            padding: 20px 25px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            background: var(--bg-white);
+            border-radius: 6px;
+            font-size: 0.95em;
+            font-weight: 500;
+            border-left: 4px solid var(--primary-color);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .legend-item.buy {
+            border-left-color: var(--success-color);
+            color: var(--success-color);
+        }
+
+        .legend-item.sell {
+            border-left-color: var(--danger-color);
+            color: var(--danger-color);
+        }
+
+        .legend-item.rsi {
+            border-left-color: var(--warning-color);
+            color: var(--warning-color);
+        }
+
+        .legend-item.macd {
+            border-left-color: var(--info-color);
+            color: var(--info-color);
+        }
+
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        /* Info Section */
+        .info-section {
+            background: var(--bg-white);
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: var(--shadow);
+            border-left: 5px solid var(--info-color);
+        }
+
+        .info-section h2 {
+            color: var(--primary-color);
+            margin-bottom: 15px;
+            font-size: 1.4em;
+        }
+
+        .info-section p {
+            color: var(--text-secondary);
+            line-height: 1.8;
+            margin-bottom: 10px;
+        }
+
+        /* Links Section */
+        .links-section {
+            background: var(--bg-white);
+            padding: 25px;
+            border-radius: 15px;
+            text-align: center;
+            margin-bottom: 30px;
+            box-shadow: var(--shadow);
+        }
+
+        .links-section h3 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            font-size: 1.2em;
+        }
+
+        .links {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .links a {
+            display: inline-block;
+            padding: 12px 28px;
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .links a:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+            border-color: white;
+        }
+
+        /* Footer */
+        footer {
+            background: var(--bg-white);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            color: var(--text-secondary);
+            box-shadow: var(--shadow);
+            border-top: 2px solid var(--border-color);
+        }
+
+        footer h3 {
+            color: var(--text-primary);
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+
+        footer p {
+            margin-bottom: 8px;
+            font-size: 0.95em;
+        }
+
+        .disclaimer {
+            background: #fff3cd;
+            border-left: 4px solid var(--warning-color);
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+            color: #856404;
+            font-size: 0.9em;
+            line-height: 1.6;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1200px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+
+            header h1 {
+                font-size: 2.2em;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            header {
+                padding: 25px 20px;
+                margin-bottom: 25px;
+            }
+
+            header h1 {
+                font-size: 1.8em;
+            }
+
+            header .subtitle {
+                font-size: 1em;
+            }
+
+            .chart-iframe {
+                height: 350px;
+            }
+
+            .legend {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .legend-item {
+                width: 100%;
+            }
+
+            nav {
+                flex-direction: column;
+            }
+
+            nav a {
+                width: 100%;
+                text-align: center;
+            }
+
+            .links {
+                flex-direction: column;
+            }
+
+            .links a {
+                width: 100%;
+            }
+
+            .info-section,
+            .links-section {
+                padding: 20px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            header h1 {
+                font-size: 1.4em;
+            }
+
+            .chart-title {
+                font-size: 1.1em;
+                padding: 15px;
+            }
+
+            .chart-iframe {
+                height: 250px;
+            }
+
+            footer {
+                padding: 15px;
+            }
+
+            .container {
+                padding: 0 5px;
+            }
+        }
+
+        /* Animations */
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .chart-card {
+            animation: slideIn 0.5s ease forwards;
+        }
+
+        .chart-card:nth-child(1) { animation-delay: 0.1s; }
+        .chart-card:nth-child(2) { animation-delay: 0.2s; }
+        .chart-card:nth-child(3) { animation-delay: 0.3s; }
+
+        /* Loading spinner */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(102, 126, 234, 0.3);
+            border-radius: 50%;
+            border-top-color: var(--primary-color);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🥇 Gold Analyzer Dashboard</h1>
+            <div class="subtitle">Real-time Technical Analysis & Trading Signals</div>
+            <div class="timestamp">Updated: <span id="updateTime">Loading...</span></div>
+        </header>
+
+        <nav>
+            <a href="#price-chart">📈 Price Chart</a>
+            <a href="#rsi-chart">📊 RSI Indicator</a>
+            <a href="#macd-chart">📉 MACD Indicator</a>
+            <a href="#info">ℹ️ Information</a>
+        </nav>
+
+        <div class="charts-grid">
+`
+
+	// Add Price Chart
+	if priceChartPath, exists := chartPaths["price"]; exists {
+		html += fmt.Sprintf(`
+            <div class="chart-card" id="price-chart">
+                <div class="chart-title">
+                    <span class="chart-title-icon">📈</span>
+                    Price Analysis with Buy/Sell Signals
+                </div>
+                <iframe class="chart-iframe" src="%s"></iframe>
+                <div class="legend">
+                    <span class="legend-item">
+                        <span class="legend-dot"></span>
+                        Gold Price (USD)
+                    </span>
+                    <span class="legend-item buy">
+                        <span class="legend-dot"></span>
+                        🟢 Buy Signal
+                    </span>
+                    <span class="legend-item sell">
+                        <span class="legend-dot"></span>
+                        🔴 Sell Signal
+                    </span>
+                </div>
+            </div>
+`, filepath.Base(priceChartPath))
+	}
+
+	// Add RSI Chart
+	if rsiChartPath, exists := chartPaths["rsi"]; exists {
+		html += fmt.Sprintf(`
+            <div class="chart-card" id="rsi-chart">
+                <div class="chart-title">
+                    <span class="chart-title-icon">📊</span>
+                    RSI (Relative Strength Index)
+                </div>
+                <iframe class="chart-iframe" src="%s"></iframe>
+                <div class="legend">
+                    <span class="legend-item rsi">
+                        <span class="legend-dot"></span>
+                        RSI Value
+                    </span>
+                    <span class="legend-item">
+                        <span class="legend-dot"></span>
+                        Overbought (70)
+                    </span>
+                    <span class="legend-item">
+                        <span class="legend-dot"></span>
+                        Oversold (30)
+                    </span>
+                </div>
+            </div>
+`, filepath.Base(rsiChartPath))
+	}
+
+	// Add MACD Chart
+	if macdChartPath, exists := chartPaths["macd"]; exists {
+		html += fmt.Sprintf(`
+            <div class="chart-card" id="macd-chart">
+                <div class="chart-title">
+                    <span class="chart-title-icon">📉</span>
+                    MACD (Moving Average Convergence Divergence)
+                </div>
+                <iframe class="chart-iframe" src="%s"></iframe>
+                <div class="legend">
+                    <span class="legend-item macd">
+                        <span class="legend-dot"></span>
+                        MACD
+                    </span>
+                    <span class="legend-item">
+                        <span class="legend-dot"></span>
+                        Signal Line
+                    </span>
+                    <span class="legend-item">
+                        <span class="legend-dot"></span>
+                        Histogram
+                    </span>
+                </div>
+            </div>
+`, filepath.Base(macdChartPath))
+	}
+
+	html += `
+        </div>
+
+        <div class="info-section" id="info">
+            <h2>📚 How to Use This Dashboard</h2>
+            <p>
+                <strong>Price Chart:</strong> Shows the historical price of gold with buy and sell signals marked.
+                Hover over the chart to see exact values. Use the zoom and pan tools to explore specific time periods.
+            </p>
+            <p>
+                <strong>RSI Indicator:</strong> Relative Strength Index measures momentum on a scale of 0-100.
+                Values above 70 indicate overbought conditions (potential sell), and values below 30 indicate oversold conditions (potential buy).
+            </p>
+            <p>
+                <strong>MACD Indicator:</strong> Shows the relationship between two moving averages.
+                When the MACD crosses above the signal line, it's often considered a bullish signal, and vice versa for bearish signals.
+            </p>
+            <p style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border-color);">
+                <strong>⚠️ Disclaimer:</strong> These charts are for informational purposes only.
+                They should not be considered as financial advice. Always consult with a qualified financial advisor before making investment decisions.
+            </p>
+        </div>
+
+        <div class="links-section">
+            <h3>📁 Direct Chart Links</h3>
+            <div class="links">
+                <a href="price_chart.html" target="_blank">📈 Full Price Chart</a>
+                <a href="rsi_chart.html" target="_blank">📊 Full RSI Chart</a>
+                <a href="macd_chart.html" target="_blank">📉 Full MACD Chart</a>
+            </div>
+        </div>
+
+        <footer>
+            <h3>🥇 Gold Analyzer</h3>
+            <p>Automated Gold Technical Analysis Tool</p>
+            <p>Version 1.0.0 | © 2024 | Built with Go & ECharts</p>
+            <div class="disclaimer">
+                💡 <strong>Important Note:</strong> This tool provides technical analysis insights only.
+                Trading involves substantial risk of loss. Past performance is not indicative of future results.
+                Always use proper risk management and consult financial professionals.
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        // Update timestamp
+        function updateTimestamp() {
+            const now = new Date();
+            const formatted = now.toLocaleString('en-US', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            });
+            document.getElementById('updateTime').textContent = formatted;
+        }
+
+        // Update on load
+        updateTimestamp();
+
+        // Smooth scroll for navigation links
+        document.querySelectorAll('nav a').forEach(link => {
+            link.addEventListener('click', (e) => {
+                const href = link.getAttribute('href');
+                if (href.startsWith('#')) {
+                    e.preventDefault();
+                    const target = document.querySelector(href);
+                    if (target) {
+                        target.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }
+            });
+        });
+
+        // Refresh timestamp every minute
+        setInterval(updateTimestamp, 60000);
+    </script>
+</body>
+</html>
+`
+
+	// Ensure output directory exists
+	outputDir := filepath.Dir(outputPath)
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+
+	// Write HTML file
+	if err := os.WriteFile(outputPath, []byte(html), 0644); err != nil {
+		return fmt.Errorf("failed to write dashboard HTML: %w", err)
+	}
+
+	return nil
+}

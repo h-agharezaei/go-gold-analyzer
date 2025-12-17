@@ -35,6 +35,8 @@ type Config struct {
 	EnableNotifications bool
 	// Log file path (empty to disable)
 	LogFile string
+	// Chart output directory
+	ChartOutputDir string
 	// Shutdown timeout duration
 	ShutdownTimeout time.Duration
 }
@@ -56,6 +58,7 @@ func DefaultConfig() *Config {
 		RSISellThreshold:    65,
 		EnableNotifications: false,
 		LogFile:             "",
+		ChartOutputDir:      "./charts",
 		ShutdownTimeout:     5 * time.Second,
 	}
 
@@ -108,6 +111,9 @@ func loadFromEnv(cfg *Config) {
 	}
 	if logFile := os.Getenv("LOG_FILE"); logFile != "" {
 		cfg.LogFile = logFile
+	}
+	if chartOutputDir := os.Getenv("CHART_OUTPUT_DIR"); chartOutputDir != "" {
+		cfg.ChartOutputDir = chartOutputDir
 	}
 	if enableNotif := os.Getenv("ENABLE_NOTIFICATIONS"); enableNotif != "" {
 		cfg.EnableNotifications = enableNotif == "1" || enableNotif == "true"
